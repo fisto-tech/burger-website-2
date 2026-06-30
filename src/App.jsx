@@ -298,6 +298,30 @@ function BurgerModel({ scrollOffset, triggerPoints }) {
             child.userData.originalPosition = child.position.clone();
           }
 
+          // if (child.material) {
+          //   // Increase metalness and tune roughness for a richer, more premium food material look
+          //   const nameLower = child.name.toLowerCase();
+          //   if (nameLower.includes('bun')) {
+          //     child.material.roughness = 1;
+          //     child.material.metalness = 1; // Slight baked sheen on bun surface
+          //   } else if (nameLower.includes('patty') || nameLower.includes('meat')) {
+          //     child.material.roughness = 1;
+          //     child.material.metalness = 1;  // Juicy sear effect on meat
+          //   } else if (nameLower.includes('tomato')) {
+          //     child.material.roughness = 1;
+          //     child.material.metalness = 1; // Wet, glistening tomato
+          //   } else if (nameLower.includes('lettuce') || nameLower.includes('salad')) {
+          //     child.material.roughness = 1;
+          //     child.material.metalness = 1; // Fresh leafy sheen
+          //   } else if (nameLower.includes('cheese')) {
+          //     child.material.roughness = 1;
+          //     child.material.metalness = 1;  // Glossy melted cheese
+          //   } else {
+          //     child.material.roughness = 1;
+          //     child.material.metalness = 1;
+          //   }
+          // }
+
           const isBun = child.name.toLowerCase().includes('bun') || 
                         (child.parent && child.parent.name.toLowerCase().includes('bun'));
 
@@ -497,35 +521,23 @@ useGLTF.preload(burgerModelPath);
 function Experience({ scrollOffset, triggerPoints }) {
   return (
     <>
-      <Environment preset="studio" environmentIntensity={0.6} />
+      {/* Soft lighting from all directions (sky/ground gradient) with no sharp specular hot-spots */}
+      <hemisphereLight intensity={1.25} color="#252424ff" groundColor="#c9c9c9ff" />
       
-      {/* Soft ambient lighting for shadow definition */}
-      <ambientLight intensity={0.25} />
+      {/* Soft ambient lighting for overall base brightness */}
+      <ambientLight intensity={1} />
       
-      {/* High-quality studio key light casting smooth shadows */}
+      {/* High-quality studio key light set to a very low intensity just for soft shadow casting */}
       <directionalLight 
-        position={[6, 12, 8]} 
-        intensity={1.8} 
+        position={[3, 8, 5]} 
+        intensity={1} 
         castShadow 
         shadow-mapSize={[2048, 2048]} 
         shadow-bias={-0.0001}
       />
       
-      {/* Soft fill light to illuminate darker areas */}
-      <directionalLight position={[-6, 6, -3]} intensity={0.45} />
-      
-      {/* Crisp white rim light to highlight burger silhouette and details */}
-      <spotLight 
-        position={[0, 8, -10]} 
-        angle={0.6} 
-        penumbra={1} 
-        intensity={3.5} 
-        color="#ffffff" 
-      />
-      
-      {/* Soft warm backing spotlights for subtle luxury mood coloring */}
-      <spotLight position={[-10, 5, -8]} angle={0.5} penumbra={1} intensity={0.6} color="#ff4500" />
-      <spotLight position={[10, 5, -8]} angle={0.5} penumbra={1} intensity={0.6} color="#ffa500" />
+      {/* Soft fill light */}
+      <directionalLight position={[-3, 6, 2]} intensity={0.1} />
       
       <Hero3DText scrollOffset={scrollOffset} triggerPoints={triggerPoints} />
       <BurgerModel scrollOffset={scrollOffset} triggerPoints={triggerPoints} />
