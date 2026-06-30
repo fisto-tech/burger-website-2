@@ -11,41 +11,122 @@ if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
 
 // ── Custom Cursor ───────────────────────────────────────────────────────────
 function CustomCursor() {
-  const dot = useRef(null);
-  const ring = useRef(null);
+  const containerRef = useRef(null);
   const pos = useRef({ x: 0, y: 0 });
-  const ringPos = useRef({ x: 0, y: 0 });
+  const currentPos = useRef({ x: 0, y: 0 });
+  const [hovered, setHovered] = useState(null);
+  const [active, setActive] = useState(false);
 
   useEffect(() => {
     const move = (e) => {
       pos.current = { x: e.clientX, y: e.clientY };
-      if (dot.current) {
-        dot.current.style.left = e.clientX + 'px';
-        dot.current.style.top = e.clientY + 'px';
+
+      const target = e.target;
+      if (target) {
+        const interactive = target.closest('button, a, .bento-item, .large-list li');
+        if (interactive) {
+          if (interactive.classList.contains('bento-item')) {
+            setHovered('bento');
+          } else if (interactive.closest('.large-list li')) {
+            setHovered('item');
+          } else if (interactive.tagName === 'BUTTON' || interactive.classList.contains('nav-cta')) {
+            setHovered('button');
+          } else if (interactive.tagName === 'A') {
+            setHovered('link');
+          }
+        } else {
+          setHovered(null);
+        }
       }
     };
+
+    const handleMouseDown = () => setActive(true);
+    const handleMouseUp = () => setActive(false);
+
     window.addEventListener('mousemove', move);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
 
     let raf;
-    const animateRing = () => {
-      ringPos.current.x += (pos.current.x - ringPos.current.x) * 0.12;
-      ringPos.current.y += (pos.current.y - ringPos.current.y) * 0.12;
-      if (ring.current) {
-        ring.current.style.left = ringPos.current.x + 'px';
-        ring.current.style.top = ringPos.current.y + 'px';
-      }
-      raf = requestAnimationFrame(animateRing);
-    };
-    raf = requestAnimationFrame(animateRing);
+    const animateCursor = () => {
+      currentPos.current.x += (pos.current.x - currentPos.current.x) * 0.18;
+      currentPos.current.y += (pos.current.y - currentPos.current.y) * 0.18;
 
-    return () => { window.removeEventListener('mousemove', move); cancelAnimationFrame(raf); };
+      if (containerRef.current) {
+        containerRef.current.style.left = currentPos.current.x + 'px';
+        containerRef.current.style.top = currentPos.current.y + 'px';
+      }
+      raf = requestAnimationFrame(animateCursor);
+    };
+    raf = requestAnimationFrame(animateCursor);
+
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
-    <>
-      <div className="cursor-dot" ref={dot} />
-      <div className="cursor-ring" ref={ring} />
-    </>
+    <div 
+      className={`custom-burger-cursor ${hovered ? `hovered-${hovered}` : ''} ${active ? 'active' : ''}`} 
+      ref={containerRef}
+    >
+      <div className="cursor-bun-top" />
+      <div className="cursor-patty" />
+      <div className="cursor-bun-bottom" />
+      {hovered && <span className="cursor-label">{hovered === 'bento' ? 'CRAVE' : hovered === 'button' ? 'BITE' : hovered.toUpperCase()}</span>}
+    </div>
+  );
+}
+
+// ── Order Modal Component ──────────────────────────────────────────────────
+function OrderModal({ isOpen, onClose }) {
+  const [successMsg, setSuccessMsg] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleAction = (msg) => {
+    setSuccessMsg(msg);
+    setTimeout(() => {
+      setSuccessMsg('');
+      onClose();
+    }, 1800);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content glass-card reveal-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>&times;</button>
+        {successMsg ? (
+          <div className="modal-success-screen">
+            <span className="success-icon" style={{ fontSize: '3rem', display: 'block', marginBottom: '15px' }}>🍔</span>
+            <h3 style={{ fontFamily: 'Anton', fontSize: '1.8rem', color: 'var(--primary)', marginBottom: '10px' }}>
+              {successMsg === 'cart' ? 'ADDED TO CART!' : 'PREPARING YOUR ORDER!'}
+            </h3>
+            <p style={{ color: '#aaa', fontSize: '0.95rem' }}>Your culinary journey is underway.</p>
+          </div>
+        ) : (
+          <>
+            <span className="section-badge">Gourmet Selection</span>
+            <h2>CHOOSE YOUR EXPERIENCE</h2>
+            <p className="modal-desc">Savor the masterfully engineered dry-aged Wagyu masterpiece. Freshly toasted buns, sharp cheddar, and black truffle butter.</p>
+            
+            <div className="modal-options">
+              <div className="modal-card">
+                <h4>THE CRAVE CLASSIC</h4>
+                <span className="price">$14.00</span>
+                <div className="modal-actions">
+                  <button className="modal-btn secondary" onClick={() => handleAction('cart')}>Add to Cart</button>
+                  <button className="modal-btn primary" onClick={() => handleAction('order')}>Order Now</button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -304,8 +385,8 @@ function BurgerModel({ scrollOffset, triggerPoints }) {
     if (!ref.current) return;
 
     // ── Mouse influence (additive, no translation) ─────────────────────────
-    mouseRY.current = THREE.MathUtils.lerp(mouseRY.current, globalMouse.current.x * 1.2, 0.04);
-    mouseRX.current = THREE.MathUtils.lerp(mouseRX.current, -globalMouse.current.y * 0.4, 0.04);
+    mouseRY.current = THREE.MathUtils.lerp(mouseRY.current, globalMouse.current.x * 1.8, 0.06);
+    mouseRX.current = THREE.MathUtils.lerp(mouseRX.current, -globalMouse.current.y * 0.7, 0.06);
 
     // ── Rotation: auto-spin Y + mouse additive ─────────────────────────────
     autoRotY.current += delta * 0.18;
@@ -319,8 +400,9 @@ function BurgerModel({ scrollOffset, triggerPoints }) {
     // ── Explosion Effect during S2 (Sizzle section) ────────────────────────
     let explode = 0;
     // Add small buffer margins to keep model fully imploded at Sizzle section boundaries
-    const sizzleStart = triggers.sizzle + 0.02;
-    const sizzleEnd = triggers.story - 0.02;
+    const sizzleStart = triggers.sizzle - 0.05; // Starts 3% scroll progress BEFORE the Sizzle section
+    const sizzleEnd = triggers.story - 0.10;     // Ends 7% scroll progress BEFORE the Story section
+
     
     if (offset >= sizzleStart && offset <= sizzleEnd) {
       const mid = (sizzleStart + sizzleEnd) / 2;
@@ -349,21 +431,21 @@ function BurgerModel({ scrollOffset, triggerPoints }) {
       
       // Sizzle (S2)
       { t: triggers.sizzle + 0.02, x: 0, y: 0, s: bs },
-      { t: triggers.story - 0.02, x: 0, y: 0, s: bs },
+      { t: triggers.story - 0.10, x: 0, y: 0, s: bs },
       
-      // Story (S3) - placed closer to the text card (1.15 instead of 2.0)
-      { t: triggers.story + 0.02, x: mob ? 0 : 1.15, y: 0, s: bs },
-      { t: triggers.colorBreak - 0.02, x: mob ? 0 : 1.15, y: 0, s: bs },
+      // Story (S3) - placed closer to the right edge (2.2 instead of 1.15)
+      { t: triggers.story - 0.02, x: mob ? 0 : 2.2, y: 0, s: bs },
+      { t: triggers.colorBreak - 0.05, x: mob ? 0 : 2.2, y: 0, s: bs },
       
-      // Color Break (S4) transition to Ingredients (S5) - placed closer to the list (1.15 instead of 2.0)
-      { t: triggers.colorBreak + 0.04, x: mob ? 0 : -1.15, y: -0.3, s: bs },
-      { t: tIngredientsHold, x: mob ? 0 : -1.15, y: -0.3, s: bs },
+      // Color Break (S4) transition to Ingredients (S5) - placed closer to the left edge (-2.2 instead of -1.15)
+      { t: triggers.colorBreak + 0.04, x: mob ? 0 : -2.2, y: -0.3, s: bs },
+      { t: tIngredientsHold, x: mob ? 0 : -2.2, y: -0.3, s: bs },
       
       // Fly off-screen during Ingredients (S5)
-      { t: tIngredientsFly, x: mob ? 0 : -1.15, y: 5.0, s: bs },
+      { t: tIngredientsFly, x: mob ? 0 : -2.2, y: 12.0, s: bs },
       
       // Menu (S6) and Footer (S7) - stays off-screen
-      { t: 1.0, x: mob ? 0 : -1.15, y: 5.0, s: bs }
+      { t: 1.0, x: mob ? 0 : -2.2, y: 12.0, s: bs }
     ];
 
     // Defensive programming: guarantee timestamps are strictly increasing and bounded between 0 and 1
@@ -392,7 +474,7 @@ function BurgerModel({ scrollOffset, triggerPoints }) {
 
     if (meshesRef.current.length > 0) {
       // Separate sliced meshes along the local Z axis (vertical in world space due to parent rotation)
-      const maxOffset = 1.4; // spacing between exploded layers (tuned to keep separation visible but elegant)
+      const maxOffset = 0.45; // spacing between exploded layers (tuned to keep separation visible but elegant)
       const count = meshesRef.current.length;
       meshesRef.current.forEach((mesh, index) => {
         const original = mesh.userData.originalPosition;
@@ -415,35 +497,35 @@ useGLTF.preload(burgerModelPath);
 function Experience({ scrollOffset, triggerPoints }) {
   return (
     <>
-      <Environment preset="studio" />
+      <Environment preset="studio" environmentIntensity={0.6} />
       
       {/* Soft ambient lighting for shadow definition */}
-      <ambientLight intensity={0.35} />
+      <ambientLight intensity={0.25} />
       
       {/* High-quality studio key light casting smooth shadows */}
       <directionalLight 
         position={[6, 12, 8]} 
-        intensity={2.4} 
+        intensity={1.8} 
         castShadow 
         shadow-mapSize={[2048, 2048]} 
         shadow-bias={-0.0001}
       />
       
       {/* Soft fill light to illuminate darker areas */}
-      <directionalLight position={[-6, 6, -3]} intensity={0.7} />
+      <directionalLight position={[-6, 6, -3]} intensity={0.45} />
       
       {/* Crisp white rim light to highlight burger silhouette and details */}
       <spotLight 
         position={[0, 8, -10]} 
         angle={0.6} 
         penumbra={1} 
-        intensity={5.5} 
+        intensity={3.5} 
         color="#ffffff" 
       />
       
       {/* Soft warm backing spotlights for subtle luxury mood coloring */}
-      <spotLight position={[-10, 5, -8]} angle={0.5} penumbra={1} intensity={1.2} color="#ff4500" />
-      <spotLight position={[10, 5, -8]} angle={0.5} penumbra={1} intensity={1.2} color="#ffa500" />
+      <spotLight position={[-10, 5, -8]} angle={0.5} penumbra={1} intensity={0.6} color="#ff4500" />
+      <spotLight position={[10, 5, -8]} angle={0.5} penumbra={1} intensity={0.6} color="#ffa500" />
       
       <Hero3DText scrollOffset={scrollOffset} triggerPoints={triggerPoints} />
       <BurgerModel scrollOffset={scrollOffset} triggerPoints={triggerPoints} />
@@ -464,6 +546,52 @@ function App() {
     menu: 0.75,
     footer: 0.9
   });
+
+  const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [fadeOut, setFadeOut] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    let currentProgress = 0;
+    const interval = setInterval(() => {
+      const increment = Math.floor(Math.random() * 12) + 4;
+      currentProgress = Math.min(100, currentProgress + increment);
+      setProgress(currentProgress);
+      
+      if (currentProgress === 100) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setFadeOut(true);
+          setTimeout(() => {
+            setLoading(false);
+          }, 600);
+        }, 450);
+      }
+    }, 90);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('active');
+          }
+        });
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -60px 0px' }
+    );
+
+    const elements = document.querySelectorAll('.reveal-on-scroll');
+    elements.forEach((el) => observer.observe(el));
+
+    return () => {
+      elements.forEach((el) => observer.unobserve(el));
+    };
+  }, [loading]);
 
   useEffect(() => {
     const lenis = new Lenis({
@@ -537,11 +665,56 @@ function App() {
 
   return (
     <>
+      {loading && (
+        <div className={`preloader ${fadeOut ? 'fade-out' : ''}`}>
+          <div className="loader-blueprint">
+            <svg viewBox="0 0 100 100" className="loader-svg" width="120" height="120">
+              <defs>
+                <linearGradient id="burger-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+                  <stop offset="0%" stopColor="#ff4500" />
+                  <stop offset="100%" stopColor="#ffa500" />
+                </linearGradient>
+                <clipPath id="loader-clip">
+                  <rect x="0" y={100 - progress} width="100" height="100" />
+                </clipPath>
+              </defs>
+              <circle cx="50" cy="50" r="46" stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" opacity="0.15" fill="none" />
+              
+              {/* Silhouette outline */}
+              <g opacity="0.15" stroke="#ffffff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15,35 Q50,12 85,35 Q85,45 80,45 L20,45 Q15,45 15,35 Z" />
+                <path d="M10,48 Q20,44 30,48 Q40,44 50,48 Q60,44 70,48 Q80,44 90,48" />
+                <rect x="18" y="52" width="28" height="6" rx="2" />
+                <rect x="54" y="52" width="28" height="6" rx="2" />
+                <path d="M15,62 L85,62 L80,68 L76,62" />
+                <rect x="18" y="70" width="64" height="12" rx="4" />
+                <path d="M18,86 L82,86 Q85,96 50,96 Q15,96 18,86 Z" />
+              </g>
+
+              {/* Colorful active parts rising up */}
+              <g clipPath="url(#loader-clip)" stroke="url(#burger-grad)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15,35 Q50,12 85,35 Q85,45 80,45 L20,45 Q15,45 15,35 Z" />
+                <path d="M10,48 Q20,44 30,48 Q40,44 50,48 Q60,44 70,48 Q80,44 90,48" />
+                <rect x="18" y="52" width="28" height="6" rx="2" />
+                <rect x="54" y="52" width="28" height="6" rx="2" />
+                <path d="M15,62 L85,62 L80,68 L76,62" />
+                <rect x="18" y="70" width="64" height="12" rx="4" />
+                <path d="M18,86 L82,86 Q85,96 50,96 Q15,96 18,86 Z" />
+              </g>
+            </svg>
+          </div>
+          <div className="loader-text">CRAVE</div>
+          <div className="loader-percentage">{progress}%</div>
+        </div>
+      )}
+
       <CustomCursor />
+
+      <OrderModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       
       <header>
         <div className="logo">CRAVE<span>.</span></div>
-        <button className="nav-cta">Pre-Order</button>
+        <button className="nav-cta" onClick={() => setIsModalOpen(true)}>Pre-Order</button>
       </header>
 
       <div className="canvas-container">
@@ -567,71 +740,75 @@ function App() {
 
         {/* S3: Story */}
         <section className="story-section">
-          <div className="story-content glass-card">
-            <span className="section-badge">THE CRAFT</span>
-            <h2>BORN FROM<br />PASSION.</h2>
-            <p>We didn't just want to make another burger. We wanted to engineer a masterpiece — every element obsessively perfected. Experience gastronomy elevated.</p>
+          <div className="section-container">
+            <div className="story-content glass-card reveal-on-scroll">
+              <span className="section-badge">THE CRAFT</span>
+              <h2>BORN FROM<br />PASSION.</h2>
+              <p>We didn't just want to make another burger. We wanted to engineer a masterpiece — every element obsessively perfected. Experience gastronomy elevated.</p>
+            </div>
           </div>
         </section>
 
         {/* S4: Color break */}
         <section className="color-break">
-          <h2>100% WAGYU.<br />ZERO COMPROMISE.</h2>
+          <h2 className="reveal-on-scroll">100% WAGYU.<br />ZERO COMPROMISE.</h2>
         </section>
 
         {/* S5: Ingredients */}
         <section className="ingredients-section">
-          <div className="ingredients-content glass-card">
-            <span className="section-badge">THE BUILD</span>
-            <h2>INGREDIENTS.</h2>
-            <ul className="large-list">
-              <li>
-                <h3><span>01.</span> Black Angus Beef</h3>
-                <p>Dry-aged 28 days for maximum density.</p>
-              </li>
-              <li>
-                <h3><span>02.</span> Artisan Brioche</h3>
-                <p>Toasted daily with black truffle butter.</p>
-              </li>
-              <li>
-                <h3><span>03.</span> Heirloom Tomato</h3>
-                <p>Organic vine-ripened, hand-sliced thick.</p>
-              </li>
-              <li>
-                <h3><span>04.</span> Aged Cheddar</h3>
-                <p>Sharp English cheddar melted under a cloche.</p>
-              </li>
-            </ul>
+          <div className="section-container">
+            <div className="ingredients-content glass-card reveal-on-scroll">
+              <span className="section-badge">THE BUILD</span>
+              <h2>INGREDIENTS.</h2>
+              <ul className="large-list">
+                <li className="reveal-on-scroll delay-1">
+                  <h3><span>01.</span> Black Angus Beef</h3>
+                  <p>Dry-aged 28 days for maximum density.</p>
+                </li>
+                <li className="reveal-on-scroll delay-2">
+                  <h3><span>02.</span> Artisan Brioche</h3>
+                  <p>Toasted daily with black truffle butter.</p>
+                </li>
+                <li className="reveal-on-scroll delay-3">
+                  <h3><span>03.</span> Heirloom Tomato</h3>
+                  <p>Organic vine-ripened, hand-sliced thick.</p>
+                </li>
+                <li className="reveal-on-scroll delay-4">
+                  <h3><span>04.</span> Aged Cheddar</h3>
+                  <p>Sharp English cheddar melted under a cloche.</p>
+                </li>
+              </ul>
+            </div>
           </div>
         </section>
 
         {/* S6: Menu */}
         <section className="menu-section">
-          <span className="section-badge centered">MENU</span>
-          <h2>SIGNATURES</h2>
+          <span className="section-badge centered reveal-on-scroll">MENU</span>
+          <h2 className="reveal-on-scroll delay-1">SIGNATURES</h2>
           <div className="bento-menu">
-            <div className="bento-item">
+            <div className="bento-item reveal-on-scroll delay-1">
               <img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80" alt="Classic Burger" />
               <div className="bento-content">
                 <h4>THE CLASSIC</h4>
                 <span>$14</span>
               </div>
             </div>
-            <div className="bento-item">
+            <div className="bento-item reveal-on-scroll delay-2">
               <img src="https://images.unsplash.com/photo-1572802419224-296b0aeee0d9?auto=format&fit=crop&w=1200&q=80" alt="Spicy Smash" />
               <div className="bento-content">
                 <h4>SPICY SMASH</h4>
                 <span>$16</span>
               </div>
             </div>
-            <div className="bento-item">
+            <div className="bento-item reveal-on-scroll delay-1">
               <img src="https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=1200&q=80" alt="Truffle Beast" />
               <div className="bento-content">
                 <h4>TRUFFLE BEAST</h4>
                 <span>$19</span>
               </div>
             </div>
-            <div className="bento-item">
+            <div className="bento-item reveal-on-scroll delay-2">
               <img src="https://images.unsplash.com/photo-1553979459-d2229ba7433b?auto=format&fit=crop&w=1200&q=80" alt="BBQ Bacon" />
               <div className="bento-content">
                 <h4>BBQ BACON</h4>
@@ -645,7 +822,7 @@ function App() {
         <footer className="luxury-footer">
           <div className="footer-top">
             <h2>HUNGRY?</h2>
-            <button className="massive-btn">ORDER NOW</button>
+            <button className="massive-btn" onClick={() => setIsModalOpen(true)}>ORDER NOW</button>
           </div>
 
           <div className="footer-grid">
